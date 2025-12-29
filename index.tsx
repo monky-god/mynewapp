@@ -102,10 +102,9 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
     if (!window.confirm(`Удалить пользователя ${telegramId}?`)) return;
     
     try {
-      const res = await fetch(`${API_URL}/admin/users/${telegramId}`, {
+      const res = await fetch(`${API_URL}/admin/users/${telegramId}?admin_password=${encodeURIComponent(adminPass)}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ admin_password: adminPass })
+        headers: { "Content-Type": "application/json" }
       });
       
       if (res.ok) {
