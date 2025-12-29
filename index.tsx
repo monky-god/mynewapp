@@ -45,7 +45,7 @@ interface FilterState {
 }
 
 // --- API Configuration ---
-const API_URL = "http://mbackand-production.up.railway.app";
+const API_URL = "https://mbackand-production.up.railway.app";
 
 // --- Mock Data ---
 const CITIES = ["Алматы", "Астана", "Шымкент", "Караганда", "Актобе", "Тараз"];
