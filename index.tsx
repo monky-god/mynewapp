@@ -429,23 +429,27 @@ const App = () => {
     }
   }
 
-  const handleRegistrationComplete = async (profile: UserProfile) => {
-    try {
-      const res = await fetch(`${API_URL}/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile)
-      });
-      
-      if (!res.ok) throw new Error("Registration failed");
-      
-      setUser(profile);
-      setView("swipe");
-      loadCandidates(profile.telegram_id, profile.is_premium, filters);
-    } catch (error) {
-      alert("Ошибка: Не удалось соединиться с сервером.");
-    }
-  };
+ const handleRegistrationComplete = async (profile: UserProfile) => {
+  try {
+    const res = await fetch(`${API_URL}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile)
+    });
+
+    const text = await res.text();
+    console.log("Server response:", text); // <--- добавь
+
+    if (!res.ok) throw new Error("Registration failed");
+
+    setUser(profile);
+    setView("swipe");
+    loadCandidates(profile.telegram_id, profile.is_premium, filters);
+  } catch (error) {
+    console.error(error);
+    alert("Ошибка: Не удалось соединиться с сервером.");
+  }
+};
 
   const handleSwipe = async (direction: 'left' | 'right') => {
     if (!user) return;
