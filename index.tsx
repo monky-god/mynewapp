@@ -67,7 +67,6 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
   const [password, setPassword] = useState("");
   const [isAuth, setIsAuth] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
-  const [adminPass, setAdminPass] = useState("");
 
   const handleLogin = async () => {
     try {
@@ -78,7 +77,6 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
       });
       if (res.ok) {
         setIsAuth(true);
-        setAdminPass(password);
         loadUsers();
       } else {
         alert("Неверный email или пароль");
@@ -98,24 +96,20 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
-  const deleteUser = async (telegramId: number) => {
-    if (!window.confirm(`Удалить пользователя ${telegramId}?`)) return;
-    
+  const deleteUser = async (telegram_id: number) => {
+    if (!confirm(`Вы уверены? Удалить пользователя ${telegram_id}?`)) return;
     try {
-      const res = await fetch(`${API_URL}/admin/users/${telegramId}?admin_password=${encodeURIComponent(adminPass)}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" }
+      const res = await fetch(`${API_URL}/admin/delete_user?telegram_id=${telegram_id}`, {
+        method: "DELETE"
       });
-      
       if (res.ok) {
         alert("Пользователь удален");
         loadUsers();
       } else {
-        alert("Ошибка при удалении");
+        alert("Ошибка удаления");
       }
     } catch (e) {
-      console.error(e);
-      alert("Ошибка подключения");
+      alert("Ошибка сервера");
     }
   };
 
@@ -160,24 +154,27 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
             marginBottom: 10,
             display: 'flex',
             alignItems: 'center',
-            gap: 10
+            gap: 10,
+            justifyContent: 'space-between'
           }}>
-            <div style={{width: 40, height: 40, borderRadius: '50%', background: '#ccc', overflow: 'hidden', flexShrink: 0}}>
-               {u.photo ? <img src={u.photo} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : null}
-            </div>
-            <div style={{fontSize: 14, overflow: 'hidden', flex: 1}}>
-              <div style={{fontWeight: 'bold'}}>
-                  {u.name}, {u.age}
-                  {u.is_premium && <span style={{marginLeft: 5}}>🌟</span>}
+            <div style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0}}>
+              <div style={{width: 40, height: 40, borderRadius: '50%', background: '#ccc', overflow: 'hidden', flexShrink: 0}}>
+                 {u.photo ? <img src={u.photo} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : null}
               </div>
-              <div style={{color: '#aaa', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
-                @{u.username} | {u.city} | 🎯 {u.goal}
+              <div style={{fontSize: 14, overflow: 'hidden', flex: 1}}>
+                <div style={{fontWeight: 'bold'}}>
+                    {u.name}, {u.age}
+                    {u.is_premium && <span style={{marginLeft: 5}}>🌟</span>}
+                </div>
+                <div style={{color: '#aaa', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden'}}>
+                  @{u.username} | {u.city}
+                </div>
               </div>
             </div>
             <button 
-              className="btn btn-secondary"
+              className="btn" 
+              style={{background: '#ff3b30', color: 'white', padding: '6px 12px', width: 'auto', fontSize: 12}}
               onClick={() => deleteUser(u.telegram_id)}
-              style={{padding: 8, width: 'auto', minWidth: 60}}
             >
               Удалить
             </button>
@@ -185,144 +182,6 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
         ))}
       </div>
       <button className="btn btn-secondary" onClick={onBack} style={{marginTop: 'auto', marginBottom: 20}}>Выйти</button>
-    </div>
-  );
-};
-
-const EditProfile = ({ user, onComplete, onCancel }: { user: UserProfile, onComplete: (profile: UserProfile) => void, onCancel: () => void }) => {
-  const [formData, setFormData] = useState<UserProfile>(user);
-
-  const updateField = (field: keyof UserProfile, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        updateField("photo", reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      const res = await fetch(`${API_URL}/profile/update`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          telegram_id: formData.telegram_id,
-          name: formData.name,
-          age: formData.age,
-          city: formData.city,
-          goal: formData.goal,
-          bio: formData.bio,
-          photo: formData.photo
-        })
-      });
-
-      if (res.ok) {
-        alert("Профиль обновлен!");
-        onComplete(formData);
-      } else {
-        alert("Ошибка при обновлении профиля");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("Ошибка подключения");
-    }
-  };
-
-  return (
-    <div className="container">
-      <div className="header">
-        <h1>Редактировать профиль</h1>
-      </div>
-
-      <div className="form-group">
-        <label>Фотография</label>
-        <label className="image-upload-label">
-          {formData.photo ? (
-            <img src={formData.photo} alt="Preview" className="image-preview" />
-          ) : (
-            <>
-              <span className="material-icons-round" style={{fontSize: 48, color: '#9e9e9e'}}>add_a_photo</span>
-              <span style={{color: '#9e9e9e', marginTop: 8}}>Загрузить фото</span>
-            </>
-          )}
-          <input type="file" accept="image/*" onChange={handlePhotoUpload} hidden />
-        </label>
-      </div>
-
-      <div className="form-group">
-        <label>Имя</label>
-        <input 
-          type="text" 
-          value={formData.name} 
-          onChange={e => updateField("name", e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Возраст</label>
-        <input 
-          type="number" 
-          value={formData.age} 
-          onChange={e => updateField("age", parseInt(e.target.value))}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Город</label>
-        <select value={formData.city} onChange={e => updateField("city", e.target.value)}>
-          {CITIES.map(city => (
-            <option key={city} value={city}>{city}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="form-group">
-        <label>Кого вы ищете?</label>
-        <div className="selection-grid" style={{gridTemplateColumns: '1fr'}}>
-          <div 
-            className={`selection-card ${formData.goal === 'relationship' ? 'selected' : ''}`}
-            onClick={() => updateField("goal", "relationship")}
-          >
-            <span className="icon">❤️</span>
-            Серьезные отношения
-          </div>
-          <div 
-            className={`selection-card ${formData.goal === 'friendship' ? 'selected' : ''}`}
-            onClick={() => updateField("goal", "friendship")}
-          >
-            <span className="icon">🤝</span>
-            Дружба
-          </div>
-          <div 
-            className={`selection-card ${formData.goal === '18+' ? 'selected' : ''}`}
-            onClick={() => updateField("goal", "18+")}
-          >
-            <span className="icon">🔥</span>
-            18+ / Веселье
-          </div>
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label>О себе</label>
-        <textarea 
-          rows={4}
-          value={formData.bio}
-          onChange={e => updateField("bio", e.target.value)}
-        />
-      </div>
-
-      <div style={{display: 'flex', gap: '10px'}}>
-        <button className="btn btn-secondary" onClick={onCancel}>Отмена</button>
-        <button className="btn btn-accent" onClick={handleSave}>Сохранить</button>
-      </div>
     </div>
   );
 };
@@ -521,7 +380,7 @@ const Registration = ({ onComplete }: { onComplete: (profile: UserProfile) => vo
 
 // --- App Component ---
 const App = () => {
-  const [view, setView] = useState<"register" | "swipe" | "matches" | "profile" | "admin" | "edit-profile">("register");
+  const [view, setView] = useState<"register" | "swipe" | "matches" | "profile" | "edit-profile" | "admin">("register");
   const [user, setUser] = useState<UserProfile | null>(null);
   const [candidates, setCandidates] = useState<UserProfile[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -572,9 +431,9 @@ const App = () => {
       // Apply filters if Premium
       if (isPremium) {
           if (currentFilters.city !== "all") query += `&city=${currentFilters.city}`;
-          if (currentFilters.goal && currentFilters.goal !== "all") query += `&goal=${currentFilters.goal}`;
           query += `&min_age=${currentFilters.minAge}`;
           query += `&max_age=${currentFilters.maxAge}`;
+          if (currentFilters.goal !== "all") query += `&goal=${currentFilters.goal}`;
       }
 
       const res = await fetch(query);
@@ -734,19 +593,142 @@ const App = () => {
       }
   }
 
+  const handleSaveProfile = async (updatedProfile: UserProfile) => {
+    try {
+      const res = await fetch(`${API_URL}/me`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedProfile)
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setUser(updated);
+        setView("profile");
+        alert("Профиль обновлен!");
+      } else {
+        alert("Ошибка при обновлении профиля");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Ошибка сервера");
+    }
+  };
+
   if (view === "admin") {
     return <AdminPanel onBack={() => setView("profile")} />;
   }
 
-  if (view === "edit-profile" && user) {
-    return <EditProfile user={user} onComplete={(updated) => {
-      setUser(updated);
-      setView("profile");
-    }} onCancel={() => setView("profile")} />;
-  }
-
   if (!user || view === "register") {
     return <Registration onComplete={handleRegistrationComplete} />;
+  }
+
+  if (view === "edit-profile" && user) {
+    return (
+      <div className="container">
+        <div className="header">
+          <h1>Редактировать профиль</h1>
+        </div>
+
+        <div className="form-group">
+          <label>Имя</label>
+          <input 
+            type="text" 
+            value={user.name} 
+            onChange={(e) => setUser({...user, name: e.target.value})}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Возраст</label>
+          <input 
+            type="number" 
+            value={user.age} 
+            onChange={(e) => setUser({...user, age: parseInt(e.target.value)})}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Пол</label>
+          <div className="selection-grid">
+            <div 
+              className={`selection-card ${user.gender === 'male' ? 'selected' : ''}`}
+              onClick={() => setUser({...user, gender: 'male'})}
+            >
+              <span className="icon">👨</span>
+              Мужской
+            </div>
+            <div 
+              className={`selection-card ${user.gender === 'female' ? 'selected' : ''}`}
+              onClick={() => setUser({...user, gender: 'female'})}
+            >
+              <span className="icon">👩</span>
+              Женский
+            </div>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Ориентация</label>
+          <select value={user.orientation} onChange={(e) => setUser({...user, orientation: e.target.value as Orientation})}>
+            <option value="hetero">Натурал(ка)</option>
+            <option value="gay">Гей / Лесбиянка</option>
+            <option value="bi">Би</option>
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label>Город</label>
+          <select value={user.city} onChange={(e) => setUser({...user, city: e.target.value})}>
+            {CITIES.map(city => (
+              <option key={city} value={city}>{city}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label>Цель поиска</label>
+          <div className="selection-grid" style={{gridTemplateColumns: '1fr'}}>
+            <div 
+              className={`selection-card ${user.goal === 'relationship' ? 'selected' : ''}`}
+              onClick={() => setUser({...user, goal: 'relationship'})}
+            >
+              <span className="icon">❤️</span>
+              Серьезные отношения
+            </div>
+            <div 
+              className={`selection-card ${user.goal === 'friendship' ? 'selected' : ''}`}
+              onClick={() => setUser({...user, goal: 'friendship'})}
+            >
+              <span className="icon">🤝</span>
+              Дружба
+            </div>
+            <div 
+              className={`selection-card ${user.goal === '18+' ? 'selected' : ''}`}
+              onClick={() => setUser({...user, goal: '18+'})}
+            >
+              <span className="icon">🔥</span>
+              18+ / Веселье
+            </div>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>О себе (Био)</label>
+          <textarea 
+            rows={4}
+            value={user.bio}
+            onChange={(e) => setUser({...user, bio: e.target.value})}
+            placeholder="Напишите пару слов о себе."
+          />
+        </div>
+
+        <div style={{display: 'flex', gap: '10px'}}>
+          <button className="btn btn-secondary" onClick={() => setView("profile")}>Отмена</button>
+          <button className="btn btn-primary" onClick={() => handleSaveProfile(user)}>Сохранить</button>
+        </div>
+      </div>
+    );
   }
 
   const currentCandidate = candidates[currentIndex];
@@ -884,12 +866,9 @@ const App = () => {
                     <p>🎯 Цель: {user.goal === 'relationship' ? 'Отношения' : user.goal === 'friendship' ? 'Дружба' : '18+'}</p>
                     <p>👀 Ориентация: {user.orientation === 'hetero' ? 'Натурал' : user.orientation === 'gay' ? 'Гей' : 'Би'}</p>
                 </div>
-                <button 
-                  className="btn btn-accent" 
-                  onClick={() => setView("edit-profile")}
-                  style={{marginTop: 16}}
-                >
-                  Редактировать профиль
+
+                <button className="btn btn-primary" onClick={() => setView("edit-profile")} style={{marginTop: 16}}>
+                  ✏️ Редактировать профиль
                 </button>
             </div>
           </div>
@@ -914,18 +893,6 @@ const App = () => {
                       </select>
                   </div>
                   <div className="form-group">
-                      <label>Кого ищут</label>
-                      <select 
-                        value={filters.goal} 
-                        onChange={(e) => setFilters(prev => ({...prev, goal: e.target.value}))}
-                      >
-                          <option value="all">Все цели</option>
-                          <option value="relationship">Серьезные отношения</option>
-                          <option value="friendship">Дружба</option>
-                          <option value="18+">18+ / Веселье</option>
-                      </select>
-                  </div>
-                  <div className="form-group">
                       <label>Возраст: {filters.minAge} - {filters.maxAge}</label>
                       <div style={{display: 'flex', gap: 10, alignItems: 'center'}}>
                           <input 
@@ -945,6 +912,18 @@ const App = () => {
                           />
                       </div>
                   </div>
+                  <div className="form-group">
+                      <label>Цель поиска</label>
+                      <select 
+                        value={filters.goal} 
+                        onChange={(e) => setFilters(prev => ({...prev, goal: e.target.value}))}
+                      >
+                          <option value="all">Все цели</option>
+                          <option value="relationship">❤️ Отношения</option>
+                          <option value="friendship">🤝 Дружба</option>
+                          <option value="18+">🔥 18+</option>
+                      </select>
+                  </div>
                   <button className="btn btn-primary" onClick={applyFilters}>Применить</button>
                   <button className="btn btn-ghost" onClick={() => setShowFilters(false)} style={{marginTop: 10}}>Отмена</button>
               </div>
@@ -963,7 +942,6 @@ const App = () => {
                   <ul style={{textAlign: 'left', margin: '20px 0', color: '#ddd'}}>
                       <li>✅ Фильтр по городу</li>
                       <li>✅ Фильтр по возрасту</li>
-                      <li>✅ Фильтр по цели (отношения, дружба, 18+)</li>
                       <li>✅ Выделение анкеты</li>
                   </ul>
                   <button className="btn btn-premium" onClick={handleBuyPremium}>
