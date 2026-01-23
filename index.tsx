@@ -28,6 +28,7 @@ interface UserProfile {
   photo: string | null; // Base64 string
   bio: string;
   is_premium: boolean;
+  premium_expires_at?: string | null; // <--- НОВОЕ ПОЛЕ: Дата истечения
 }
 
 interface Match {
@@ -46,6 +47,7 @@ interface FilterState {
 }
 
 // --- API Configuration ---
+// Замените на ваш актуальный URL бэкенда
 const API_URL = "https://mbackand-production.up.railway.app";
 
 // --- Mock Data ---
@@ -58,6 +60,26 @@ const getTelegramUser = () => {
     return tg.initDataUnsafe.user;
   }
   return { id: 123456789, username: "test_user", first_name: "Test" };
+};
+
+// --- Helper: Format Date ---
+const formatDate = (dateString?: string | null) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+};
+
+// --- Helper: Days Left Calculation ---
+const getDaysLeft = (dateString?: string | null) => {
+    if (!dateString) return 0;
+    const end = new Date(dateString).getTime();
+    const now = new Date().getTime();
+    const diff = end - now;
+    return Math.ceil(diff / (1000 * 3600 * 24));
 };
 
 // --- Components ---
@@ -99,8 +121,10 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
   const deleteUser = async (telegram_id: number) => {
     if (!confirm(`Вы уверены? Удалить пользователя ${telegram_id}?`)) return;
     try {
-      const res = await fetch(`${API_URL}/admin/delete_user?telegram_id=${telegram_id}`, {
-        method: "DELETE"
+      const res = await fetch(`${API_URL}/admin/delete_user`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telegram_id })
       });
       if (res.ok) {
         alert("Пользователь удален");
@@ -161,14 +185,20 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
               <div style={{width: 40, height: 40, borderRadius: '50%', background: '#ccc', overflow: 'hidden', flexShrink: 0}}>
                  {u.photo ? <img src={u.photo} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : null}
               </div>
-              <div style={{fontSize: 14, overflow: 'hidden', flex: 1}}>
+              <div style={{fontSize: 12, overflow: 'hidden', flex: 1}}>
                 <div style={{fontWeight: 'bold'}}>
                     {u.name}, {u.age}
                     {u.is_premium && <span style={{marginLeft: 5}}>🌟</span>}
                 </div>
-                <div style={{color: '#aaa', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden'}}>
+                <div style={{color: '#aaa', fontSize: 10}}>
                   @{u.username} | {u.city}
                 </div>
+                {/* Отображение даты окончания в админке */}
+                {u.premium_expires_at && (
+                    <div style={{color: '#FFD700', fontSize: 10}}>
+                        До: {formatDate(u.premium_expires_at)}
+                    </div>
+                )}
               </div>
             </div>
             <button 
@@ -176,7 +206,7 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
               style={{background: '#ff3b30', color: 'white', padding: '6px 12px', width: 'auto', fontSize: 12}}
               onClick={() => deleteUser(u.telegram_id)}
             >
-              Удалить
+              Удал.
             </button>
           </div>
         ))}
@@ -203,7 +233,8 @@ const Registration = ({ onComplete }: { onComplete: (profile: UserProfile) => vo
     goal: "relationship",
     photo: null,
     bio: "",
-    is_premium: false
+    is_premium: false,
+    premium_expires_at: null
   });
 
   const handleNext = () => setStep(step + 1);
@@ -467,9 +498,6 @@ const App = () => {
       body: JSON.stringify(profile)
     });
 
-    const text = await res.text();
-    console.log("Server response:", text); // <--- добавь
-
     if (!res.ok) throw new Error("Registration failed");
 
     setUser(profile);
@@ -510,9 +538,12 @@ const App = () => {
         if (currentIndex < candidates.length - 1) {
             setCurrentIndex(prev => prev + 1);
         } else {
-            // Check if there are more
-             setCurrentIndex(0); // For demo, loop back or empty
-             alert("Анкеты закончились! Попробуйте сменить фильтры.");
+             // Loop or reset
+             setCurrentIndex(0); 
+             // Если мы были в конце, можно попытаться загрузить снова
+             if (candidates.length > 0) {
+                 alert("Анкеты по вашим параметрам закончились. Начинаем сначала!");
+             }
         }
     }, 200);
   };
@@ -533,12 +564,12 @@ const App = () => {
       }
   };
 
-  // --- Payment Logic: Telegram Payments / Stars ---
+  // --- Payment Logic ---
   const handleBuyPremium = async () => {
       if (!user) return;
       
       try {
-          // 1. Request the backend to generate a Payment Invoice Link
+          // 1. Request invoice
           const res = await fetch(`${API_URL}/create_invoice`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -554,22 +585,26 @@ const App = () => {
           const data = await res.json();
           const invoiceLink = data.invoice_link;
 
-          // 2. Open the Invoice inside Telegram
+          // 2. Open invoice
           if (window.Telegram?.WebApp) {
               window.Telegram.WebApp.openInvoice(invoiceLink, (status: string) => {
                   if (status === "paid") {
-                      // 3. Payment Successful UI Update
-                      // Note: The real database update happens via Webhook/Polling on the backend
-                      window.Telegram.WebApp.close(); // Close invoice
+                      window.Telegram.WebApp.close(); 
                       setShowPremiumModal(false);
-                      alert("Оплата прошла успешно! Ваш Premium активирован.");
+                      alert("Оплата прошла успешно! Ваш Premium активирован на 30 дней.");
                       
-                      // Optimistically update UI or reload user
-                      const updatedUser = { ...user, is_premium: true };
+                      // Обновляем данные пользователя немедленно
+                      const now = new Date();
+                      const expiry = new Date();
+                      expiry.setDate(now.getDate() + 30);
+                      
+                      const updatedUser = { 
+                          ...user, 
+                          is_premium: true,
+                          premium_expires_at: expiry.toISOString()
+                      };
                       setUser(updatedUser);
                       loadCandidates(updatedUser.telegram_id, true, filters);
-                  } else if (status === "cancelled") {
-                       // User cancelled
                   } else if (status === "failed") {
                       alert("Оплата не прошла.");
                   }
@@ -843,14 +878,26 @@ const App = () => {
                     )}
                 </div>
                 <h2>{user.name}, {user.age}</h2>
+                
+                {/* --- ОТОБРАЖЕНИЕ СТАТУСА PREMIUM И ВРЕМЕНИ --- */}
                 {user.is_premium ? (
-                    <div className="premium-badge">PREMIUM ACTIVATED</div>
+                    <div className="premium-badge-container" style={{textAlign: 'center'}}>
+                        <div className="premium-badge" style={{marginBottom: 5}}>
+                            PREMIUM ACTIVATED
+                        </div>
+                        <div style={{fontSize: 14, color: '#FFD700'}}>
+                            Истекает: <b>{formatDate(user.premium_expires_at)}</b>
+                        </div>
+                        <div style={{fontSize: 12, color: '#aaa'}}>
+                            (Осталось дней: {getDaysLeft(user.premium_expires_at)})
+                        </div>
+                    </div>
                 ) : (
                     <div style={{textAlign: 'center'}}>
                         <button className="btn btn-premium" onClick={() => setShowPremiumModal(true)}>
                             Купить Premium за 590 ₸
                         </button>
-                        <p style={{fontSize: 12, color: '#aaa', marginTop: 5}}>Оплата через Telegram Stars / Карту (Тест)</p>
+                        <p style={{fontSize: 12, color: '#aaa', marginTop: 5}}>Оплата через Telegram Stars</p>
                     </div>
                 )}
 
@@ -936,16 +983,16 @@ const App = () => {
               <div className="modal-content premium-content">
                   <div style={{fontSize: 64, marginBottom: 10}}>🌟</div>
                   <h2 style={{background: 'linear-gradient(45deg, #FFD700, #FFA500)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>
-                      PREMIUM
+                      PREMIUM (1 Месяц)
                   </h2>
                   <p>Разблокируй полный доступ!</p>
                   <ul style={{textAlign: 'left', margin: '20px 0', color: '#ddd'}}>
                       <li>✅ Фильтр по городу</li>
                       <li>✅ Фильтр по возрасту</li>
-                      <li>✅ Выделение анкеты</li>
+                      <li>✅ Срок действия: 30 дней</li>
                   </ul>
                   <button className="btn btn-premium" onClick={handleBuyPremium}>
-                      Купить за 590 ₸
+                      Купить за 100 ⭐️
                   </button>
                   <button className="btn btn-ghost" onClick={() => setShowPremiumModal(false)} style={{marginTop: 10}}>
                       Позже
