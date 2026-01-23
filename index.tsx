@@ -121,27 +121,21 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
 const deleteUser = async (telegram_id: number) => {
     if (!confirm(`Вы уверены? Удалить пользователя ${telegram_id}?`)) return;
     try {
-      // ИЗМЕНЕНИЕ ЗДЕСЬ: Передаем ID в URL, а не в body
-      const res = await fetch(`${API_URL}/admin/delete_user?telegram_id=${telegram_id}`, {
+      const res = await fetch(`${API_URL}/admin/delete_user`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" }
-        // body убираем совсем
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telegram_id })
       });
-      
       if (res.ok) {
         alert("Пользователь удален");
         loadUsers();
       } else {
-        // Добавим чтение ошибки для отладки
-        const err = await res.json(); 
-        console.error(err);
         alert("Ошибка удаления");
       }
     } catch (e) {
       alert("Ошибка сервера");
     }
   };
-
   if (!isAuth) {
     return (
       <div className="container" style={{justifyContent: 'center', alignItems: 'center'}}>
