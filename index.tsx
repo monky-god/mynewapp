@@ -118,7 +118,7 @@ const AdminPanel = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
-const deleteUser = async (telegram_id: number) => {
+  const deleteUser = async (telegram_id: number) => {
     if (!confirm(`Вы уверены? Удалить пользователя ${telegram_id}?`)) return;
     try {
       const res = await fetch(`${API_URL}/admin/delete_user`, {
@@ -136,6 +136,7 @@ const deleteUser = async (telegram_id: number) => {
       alert("Ошибка сервера");
     }
   };
+
   if (!isAuth) {
     return (
       <div className="container" style={{justifyContent: 'center', alignItems: 'center'}}>
